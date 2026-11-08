@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TaskStatus {
+  BELUM_DIKERJAKAN
+  DIKERJAKAN
+  SELESAI
+}
+
+model User {
+  id                    String    @id @default(cuid())
+  phone                 String    @unique            // format 628xxxxxxxxxx
+  passwordHash          String
+  fullName              String?
+  university            String?
+  major                 String?
+  onboardingDone        Boolean   @default(false)
+
+  telegramChatId        String?   @unique            // chat_id Telegram (simpan sebagai string)
+  telegramLinkedAt      DateTime?
+  telegramLinkToken     String?   @unique            // token sekali pakai untuk deep link
+  telegramLinkExpiresAt DateTime?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  semesters             Semester[]
+  tasks                 Task[]
+}
+
+model Semester {
+  id           String   @id @default(cuid())
+  userId       String
+  number       Int                                   // semester ke-berapa (1..14)
+  academicYear String                                // contoh "2026/2027"
+  isActive     Boolean  @default(false)              // hanya satu aktif per user
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses      Course[]
+
+  @@unique([userId, number, academicYear])
+  @@index([userId])
+}
+
+model Course {
+  id         String   @id @default(cuid())
+  semesterId String
+  name       String
+  createdAt  DateTime @default(now())
+
+  semester   Semester @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  tasks      Task[]
+
+  @@unique([semesterId, name])
+  @@index([semesterId])
+}
+
+model Task {
+  id             String     @id @default(cuid())
+  userId         String
+  courseId       String
+  title          String
+  deadline       DateTime                              // UTC
+  status         TaskStatus @default(BELUM_DIKERJAKAN)
+  reminderSent   Boolean    @default(false)
+  reminderSentAt DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course         Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, reminderSent, deadline])
+}
